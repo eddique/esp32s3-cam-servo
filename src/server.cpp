@@ -94,38 +94,87 @@ static std::list<dl::detect::result_t> inference(camera_fb_t *fb)
     return results;
 }
 
-void draw_face_boxes(fb_data_t *fb, std::list<dl::detect::result_t> *results, int face_id)
+// void draw_face_boxes(fb_data_t *fb, std::list<dl::detect::result_t> *results, int face_id)
+// {
+//     int x, y, w, h;
+//     int center_x, center_y;
+//     uint32_t color = FACE_COLOR_YELLOW;
+//     if (face_id < 0)
+//         color = FACE_COLOR_RED;
+//     else if (face_id > 0)
+//         color = FACE_COLOR_GREEN;
+
+//     if (fb->bytes_per_pixel == 2)
+//         color = ((color >> 16) & 0x001F) | ((color >> 3) & 0x07E0) | ((color << 8) & 0xF800);
+
+//     int i = 0;
+//     for (std::list<dl::detect::result_t>::iterator prediction = results->begin(); prediction != results->end(); prediction++, i++)
+//     {
+//         x = (int)prediction->box[0];
+//         y = (int)prediction->box[1];
+//         w = (int)prediction->box[2] - x + 1;
+//         h = (int)prediction->box[3] - y + 1;
+
+//         center_x = w / 2 + x;
+//         center_y = h / 2 + y;
+
+//         if ((x + w) > fb->width)
+//             w = fb->width - x;
+//         if ((y + h) > fb->height)
+//             h = fb->height - y;
+//         fb_gfx_drawFastHLine(fb, center_x, center_y, 5, color);
+//         fb_gfx_drawFastHLine(fb, center_x, center_y + 5, 5, color);
+//         fb_gfx_drawFastVLine(fb, center_x, center_y, 5, color);
+//         fb_gfx_drawFastVLine(fb, center_x + 5, y, h, color);
+//     }
+// }
+static void draw_face_boxes(fb_data_t *fb, std::list<dl::detect::result_t> *results, int face_id)
 {
     int x, y, w, h;
-    int center_x, center_y;
     uint32_t color = FACE_COLOR_YELLOW;
     if (face_id < 0)
+    {
         color = FACE_COLOR_RED;
+    }
     else if (face_id > 0)
+    {
         color = FACE_COLOR_GREEN;
-
+    }
     if (fb->bytes_per_pixel == 2)
+    {
+        // color = ((color >> 8) & 0xF800) | ((color >> 3) & 0x07E0) | (color & 0x001F);
         color = ((color >> 16) & 0x001F) | ((color >> 3) & 0x07E0) | ((color << 8) & 0xF800);
-
+    }
     int i = 0;
     for (std::list<dl::detect::result_t>::iterator prediction = results->begin(); prediction != results->end(); prediction++, i++)
     {
+        // rectangle box
         x = (int)prediction->box[0];
         y = (int)prediction->box[1];
         w = (int)prediction->box[2] - x + 1;
         h = (int)prediction->box[3] - y + 1;
-
-        center_x = w / 2 + x;
-        center_y = h / 2 + y;
-
         if ((x + w) > fb->width)
+        {
             w = fb->width - x;
+        }
         if ((y + h) > fb->height)
+        {
             h = fb->height - y;
-        fb_gfx_drawFastHLine(fb, center_x, center_y, 5, color);
-        fb_gfx_drawFastHLine(fb, center_x, center_y + 5, 5, color);
-        fb_gfx_drawFastVLine(fb, center_x, center_y, 5, color);
-        fb_gfx_drawFastVLine(fb, center_x + 5, y, h, color);
+        }
+        fb_gfx_drawFastHLine(fb, x, y, w, color);
+        fb_gfx_drawFastHLine(fb, x, y + h - 1, w, color);
+        fb_gfx_drawFastVLine(fb, x, y, h, color);
+        fb_gfx_drawFastVLine(fb, x + w - 1, y, h, color);
+#if TWO_STAGE
+        // landmarks (left eye, mouth left, nose, right eye, mouth right)
+        int x0, y0, j;
+        for (j = 0; j < 10; j += 2)
+        {
+            x0 = (int)prediction->keypoint[j];
+            y0 = (int)prediction->keypoint[j + 1];
+            fb_gfx_fillRect(fb, x0, y0, 3, 3, color);
+        }
+#endif
     }
 }
 
@@ -196,6 +245,10 @@ static esp_err_t cmd_handler(httpd_req_t *req)
             res = s->set_framesize(s, (framesize_t)val);
         }
     }
+    else if (!strcmp(variable, "quality"))
+    {
+        res = s->set_quality(s, val);
+    }
     else if (!strcmp(variable, "servos-mode"))
     {
         if (val == 0)
@@ -213,6 +266,19 @@ static esp_err_t cmd_handler(httpd_req_t *req)
         move(DOWN, val);
     else if (!strcmp(variable, "center"))
         center();
+    
+#if CONFIG_ESP_FACE_DETECT_ENABLED
+    else if (!strcmp(variable, "face_detect"))
+    {
+        detection_enabled = val;
+#if CONFIG_ESP_FACE_RECOGNITION_ENABLED
+        if (!detection_enabled)
+        {
+            recognition_enabled = 0;
+        }
+#endif
+    }
+#endif
 #ifdef CAM_OPTS
     else if (!strcmp(variable, "quality"))
     {

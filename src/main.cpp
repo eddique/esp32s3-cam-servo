@@ -5,7 +5,6 @@
 #include <WebServer.h>
 #include "servos.h"
 
-// #include "camera.h"
 #include "server.h"
 #include "camera_pins.h"
 

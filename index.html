@@ -73,6 +73,16 @@
                 justify-content: center;
                 width: 100%;
                 gap: 8px;
+                margin: 5px 0;
+            }
+            .camera-opts {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                width: 100%;
+                gap: 8px;
+                margin: 5px 0; 
             }
             .servos-ctl {
                 display: flex;
@@ -80,11 +90,81 @@
                 justify-content: center;
                 gap: 8px;
             }
+            .input-group {
+                display: flex;
+                flex-wrap: nowrap;
+                line-height: 22px;
+            }
+
+            .input-group > label {
+                display: flex;
+                padding-right: 10px;
+
+                color: black;
+            }
+            select {
+                border: 1px solid #363636;
+                font-size: 14px;
+                height: 22px;
+                outline: 0;
+                border-radius: 5px
+            }
+            .input-group input,
+            .input-group select,
+            .input-group span {
+                flex-grow: 1;
+            }
+            .switch {
+                display: block;
+                position: relative;
+                line-height: 22px;
+                font-size: 16px;
+                height: 22px
+            }
+
+            .switch input {
+                outline: 0;
+                opacity: 0;
+                width: 0;
+                height: 0
+            }
+            .slider {
+                width: 50px;
+                height: 22px;
+                border-radius: 22px;
+                cursor: pointer;
+                background-color: grey
+            }
+
+            .slider,.slider:before {
+                display: inline-block;
+                transition: .4s
+            }
+
+            .slider:before {
+                position: relative;
+                content: "";
+                border-radius: 50%;
+                height: 16px;
+                width: 16px;
+                left: 4px;
+                top: 3px;
+                background-color: #fff
+            }
+
+            input:checked+.slider {
+                background-color: #ff3034
+            }
+
+            input:checked+.slider:before {
+                -webkit-transform: translateX(26px);
+                transform: translateX(26px)
+            }
+
         </style>
     </head>
     <body>
         <div class="content">
-
             <div id="stream-container" class="image-container hidden">
                 <a
                     id="save-still"
@@ -106,11 +186,62 @@
                     <button id="down">Down</button>
                     <button id="center">Center</button>
                 </div>
+                
+            </section>
+            <section class="buttons">
+                <div class="input-group" id="framesize-group">
+                    <label for="framesize">Resolution</label>
+                    <select id="framesize" class="default-action">
+                        <!-- 5MP -->
+                        <option value="21" selected="selected">
+                            QSXGA(2560x1920)
+                        </option>
+                        <option value="20">P FHD(1080x1920)</option>
+                        <option value="19">WQXGA(2560x1600)</option>
+                        <option value="18">QHD(2560x1440)</option>
+                        <!-- 3MP -->
+                        <option value="17">QXGA(2048x1564)</option>
+                        <option value="16">P 3MP(864x1564)</option>
+                        <option value="15">P HD(720x1280)</option>
+                        <option value="14">FHD(1920x1080)</option>
+                        <!-- 2MP -->
+                        <option value="13">UXGA(1600x1200)</option>
+                        <option value="12">SXGA(1280x1024)</option>
+                        <option value="11">HD(1280x720)</option>
+                        <option value="10">XGA(1024x768)</option>
+                        <option value="9">SVGA(800x600)</option>
+                        <option value="8">VGA(640x480)</option>
+                        <option value="7">HVGA(480x320)</option>
+                        <option value="6">CIF(400x296)</option>
+                        <option value="5">QVGA(320x240)</option>
+                        <option value="4">240x240</option>
+                        <option value="3">HQVGA(240x176)</option>
+                        <option value="2">QCIF(176x144)</option>
+                        <option value="1">QQVGA(160x120)</option>
+                        <option value="0">96x96</option>
+                    </select>
+                </div>
+                <div class="input-group" id="face_detect-group">
+                    <label for="face_detect">Face Detection</label>
+                    <div class="switch">
+                        <input id="face_detect" type="checkbox" class="default-action">
+                        <label class="slider" for="face_detect"></label>
+                    </div>
+                </div>
+                <div class="input-group" id="face_recognize-group">
+                    <label for="face_recognize">Face Recognition</label>
+                    <div class="switch">
+                        <input id="face_recognize" type="checkbox" class="default-action">
+                        <label class="slider" for="face_recognize"></label>
+                    </div>
+                </div>
             </section>
         </div>
 
         <script>
             document.addEventListener("DOMContentLoaded", function (event) {
+                const framesize = document.getElementById("framesize");
+
                 const saveButton = document.getElementById("save-still");
                 const servoButtons =
                     document.querySelectorAll(".servos-ctl button");
@@ -179,8 +310,45 @@
                     });
                 }
 
+                const updateValue = (el, value, updateRemote) => {
+                    updateRemote = updateRemote == null ? true : updateRemote;
+                    let initialValue;
+                    if (el.type === "checkbox") {
+                        initialValue = el.checked;
+                        value = !!value;
+                        el.checked = value;
+                    } else {
+                        initialValue = el.value;
+                        el.value = value;
+                    }
+
+                    if (updateRemote && initialValue !== value) {
+                        updateConfig(el);
+                    } 
+                    // else if (!updateRemote) {
+                    //     if (el.id === "aec") {
+                    //         value ? hide(exposure) : show(exposure);
+                    //     } else if (el.id === "agc") {
+                    //         if (value) {
+                    //             //show(gainCeiling)
+                    //             hide(agcGain);
+                    //         } else {
+                    //             //hide(gainCeiling)
+                    //             show(agcGain);
+                    //         }
+                    //     } else if (el.id === "awb_gain") {
+                    //         value ? show(wb) : hide(wb);
+                    //     } else if (el.id === "face_recognize") {
+                    //         value
+                    //             ? enable(enrollButton)
+                    //             : disable(enrollButton);
+                    //     }
+                    // }
+                };
+
                 servosModeButton.onclick = () => {
-                    const newMode = servosModeButton.innerHTML === "Set Sweep" ? 1 : 0;
+                    const newMode =
+                        servosModeButton.innerHTML === "Set Sweep" ? 1 : 0;
                     console.log(servosModeButton.innerHTML);
                     if (newMode === 0) {
                         servosModeButton.innerHTML = "Set Sweep";
@@ -207,6 +375,14 @@
                     show(viewContainer);
                     show(saveButton);
                     streamButton.innerHTML = "Stop Stream";
+                };
+
+                framesize.onchange = () => {
+                    updateConfig(framesize);
+                    if (framesize.value > 5) {
+                        updateValue(detect, false);
+                        updateValue(recognize, false);
+                    }
                 };
 
                 streamButton.onclick = () => {
