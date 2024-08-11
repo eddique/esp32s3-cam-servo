@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ESP32S3</title>
+        <style>
+            :root {
+                font-family: Inter, system-ui, Avenir, Helvetica, Arial,
+                    sans-serif;
+                line-height: 1.5;
+                font-weight: 400;
+
+                --small-shadow: rgba(0, 0, 0, 0.12) 0px 1px 3px,
+                    rgba(0, 0, 0, 0.24) 0px 1px 2px;
+                --medium-shadow: rgba(0, 0, 0, 0.16) 0px 3px 6px,
+                    rgba(0, 0, 0, 0.23) 0px 3px 6px;
+                --large-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px,
+                    rgba(0, 0, 0, 0.23) 0px 6px 6px;
+                --xl-shadow: rgba(0, 0, 0, 0.25) 0px 14px 28px,
+                    rgba(0, 0, 0, 0.22) 0px 10px 10px;
+                --xxl-shadow: rgba(0, 0, 0, 0.3) 0px 19px 38px,
+                    rgba(0, 0, 0, 0.22) 0px 15px 12px;
+
+                --border: 1px solid rgba(86, 88, 105);
+                /* --background: #212121; */
+                /* --background: #171717; */
+                --modal-background: #202123;
+                --primary-text: white;
+                --accent-color: #ab68ff;
+                color: var(--primary-text);
+                font-synthesis: none;
+                text-rendering: optimizeLegibility;
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+                background-color: var(--background);
+            }
+            button {
+                border-radius: 8px;
+                border: 1px solid transparent;
+                padding: 0.6em 1.2em;
+                font-size: 1em;
+                font-weight: 500;
+                font-family: inherit;
+                cursor: pointer;
+                transition: border-color 0.25s;
+            }
+
+            button:focus,
+            button:focus-visible {
+                outline: none;
+            }
+            .hidden {
+                display: none;
+            }
+            .content {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            }
+            .image-container {
+                width: 100vw;
+                height: 25vh;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }
+            .buttons {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                justify-content: center;
+                width: 100%;
+                gap: 8px;
+            }
+            .servos-ctl {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="content">
+
+            <div id="stream-container" class="image-container hidden">
+                <a
+                    id="save-still"
+                    href="#"
+                    class="button save hidden"
+                    download="capture.jpg"
+                    >Save</a
+                >
+                <div class="close" id="close-stream">×</div>
+                <img id="stream" src="" crossorigin />
+            </div>
+            <section id="buttons" class="buttons">
+                <button id="toggle-stream">Start Stream</button>
+                <button id="servos-mode">Set Sweep</button>
+                <div class="servos-ctl">
+                    <button id="left">Left</button>
+                    <button id="right">Right</button>
+                    <button id="up">Up</button>
+                    <button id="down">Down</button>
+                    <button id="center">Center</button>
+                </div>
+            </section>
+        </div>
+
+        <script>
+            document.addEventListener("DOMContentLoaded", function (event) {
+                const saveButton = document.getElementById("save-still");
+                const servoButtons =
+                    document.querySelectorAll(".servos-ctl button");
+                const streamButton = document.getElementById("toggle-stream");
+                const servosModeButton = document.getElementById("servos-mode");
+                const view = document.getElementById("stream");
+                const viewContainer =
+                    document.getElementById("stream-container");
+
+                var baseHost = document.location.origin;
+                var streamUrl = baseHost + ":81";
+
+                const hide = (el) => {
+                    el.classList.add("hidden");
+                };
+
+                const show = (el) => {
+                    el.classList.remove("hidden");
+                };
+
+                function fetchUrl(url, cb) {
+                    fetch(url)
+                        .then(function (response) {
+                            if (response.status !== 200) {
+                                cb(response.status, response.statusText);
+                            } else {
+                                response
+                                    .text()
+                                    .then(function (data) {
+                                        cb(200, data);
+                                    })
+                                    .catch(function (err) {
+                                        cb(-1, err);
+                                    });
+                            }
+                        })
+                        .catch(function (err) {
+                            cb(-1, err);
+                        });
+                }
+
+                function updateConfig(el) {
+                    let value;
+                    switch (el.type) {
+                        case "checkbox":
+                            value = el.checked ? 1 : 0;
+                            break;
+                        case "range":
+                        case "select-one":
+                            value = el.value;
+                            break;
+                        case "button":
+                        case "submit":
+                            value = "1";
+                            break;
+                        default:
+                            return;
+                    }
+
+                    const query = `${baseHost}/control?var=${el.id}&val=${value}`;
+
+                    fetch(query).then((response) => {
+                        console.log(
+                            `request to ${query} finished, status: ${response.status}`
+                        );
+                    });
+                }
+
+                servosModeButton.onclick = () => {
+                    const newMode = servosModeButton.innerHTML === "Set Sweep" ? 1 : 0;
+                    console.log(servosModeButton.innerHTML);
+                    if (newMode === 0) {
+                        servosModeButton.innerHTML = "Set Sweep";
+                    } else {
+                        servosModeButton.innerHTML = "Set Ctl";
+                    }
+                    const query = `${baseHost}/control?var=${servosModeButton.id}&val=${newMode}`;
+
+                    fetch(query).then((response) => {
+                        console.log(
+                            `request to ${query} finished, status: ${response.status}`
+                        );
+                    });
+                };
+
+                const stopStream = () => {
+                    window.stop();
+                    hide(saveButton);
+                    streamButton.innerHTML = "Start Stream";
+                };
+
+                const startStream = () => {
+                    view.src = `${streamUrl}/stream`;
+                    show(viewContainer);
+                    show(saveButton);
+                    streamButton.innerHTML = "Stop Stream";
+                };
+
+                streamButton.onclick = () => {
+                    const streamEnabled =
+                        streamButton.innerHTML === "Stop Stream";
+                    if (streamEnabled) {
+                        stopStream();
+                    } else {
+                        startStream();
+                    }
+                };
+
+                saveButton.onclick = () => {
+                    var canvas = document.createElement("canvas");
+                    canvas.width = view.width;
+                    canvas.height = view.height;
+                    document.body.appendChild(canvas);
+                    var context = canvas.getContext("2d");
+                    context.drawImage(view, 0, 0);
+                    try {
+                        var dataURL = canvas.toDataURL("image/jpeg");
+                        saveButton.href = dataURL;
+                        var d = new Date();
+                        saveButton.download =
+                            d.getFullYear() +
+                            ("0" + (d.getMonth() + 1)).slice(-2) +
+                            ("0" + d.getDate()).slice(-2) +
+                            ("0" + d.getHours()).slice(-2) +
+                            ("0" + d.getMinutes()).slice(-2) +
+                            ("0" + d.getSeconds()).slice(-2) +
+                            ".jpg";
+                    } catch (e) {
+                        console.error(e);
+                    }
+                    canvas.parentNode.removeChild(canvas);
+                };
+
+                servoButtons.forEach((button) => {
+                    button.onclick = () => {
+                        const value = 5;
+                        const query = `${baseHost}/control?var=${button.id}&val=${value}`;
+
+                        fetch(query).then((response) => {
+                            console.log(
+                                `request to ${query} finished, status: ${response.status}`
+                            );
+                        });
+                    };
+                });
+            });
+        </script>
+    </body>
+</html>
